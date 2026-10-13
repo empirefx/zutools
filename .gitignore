@@ -10,6 +10,11 @@ venv/
 _dump/
 _world/
 
+# PyInstaller
+build/
+dist/
+*.spec
+
 #
 dist/
 build/

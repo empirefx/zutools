@@ -2,6 +2,8 @@
 
 Reverse-engineered toolkit for the *Zu Online / 新蜀山OL* client archives.
 
+![Project Screenshot](screenshot.png)
+
 ## Layout
 
 | file | purpose |
