@@ -83,6 +83,10 @@ Reader: `zudata.py`.
 - `*.ZU2` = the same `FDCA2121` RC4+LZO1X container; the payload is a
   **1024×1024 16-bit BMP heightmap** (`"BM"` header). Decode with
   `zudata.decode_zu1`.
+- A few files are already raw despite the `.ZU2` name (e.g.
+  `LEVEL99_04_EMJD_HEIGHTMAP.ZU2` is a bare BMP). `zumaps.convert` picks the
+  output extension from the *decoded content*: `BM`→`.bmp`, `FF D8`→`.jpg`,
+  else `.bin`.
 
 ## 3. `WORLDS/*.DAT` (LithTech Jupiter world, `.DAT` version 85)
 

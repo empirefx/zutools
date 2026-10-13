@@ -23,6 +23,7 @@ python -c "from zucrypto import lzo1x_decompress; print('lzo ok')"
 python zudata.py decode DATA\ACTIONS.ZU1 $env:TEMP\actions.bin   # 444 bytes
 python zuworld.py list WORLDS\XR.DAT                             # 31 objects
 python zulua.py                                                  # selftest OK
+python zumaps.py --selftest                                      # zumaps selftest OK
 python gui.py --selftest                                         # gui selftest OK
 ```
 
@@ -31,6 +32,8 @@ Known-good expectations:
 - `AREATABLE.ZU1` decodes to **4** bytes.
 - `XR.DAT` parses to **31** objects (11 `ZUWorldModel`, 10 `SpecialFX`, 4 `GameStartPoint`, …).
 - `LEVEL01_00_WYC.DAT` parses to **807** objects.
+- `MAPS/LEVEL01_00_WYC_HEIGHTMAP.ZU2` decodes to a **1024x1024 16-bpp** BMP;
+  `MAPS/*_MINIMAP.ZU3` are raw JPEG (`ff d8 ff e1`).
 
 ## Data provenance (how each format was found)
 
@@ -64,7 +67,12 @@ Known-good expectations:
 - `zurez.Archive.entries()` yields `(path, size, read_pos)`; `Archive.read()`
   fetches bytes (handles the seal boundary transparently).
 - `zudata.decode_zu1(blob)` is the single entry point for `.zu1` bytes.
+- `zumaps.convert()` decodes `MAPS/`: `*_MINIMAP.ZU3` are raw JPEG (copied to
+  `.jpg`); most `*_HEIGHTMAP.ZU2` share the `.zu1` container (RC4+LZO) and
+  decode to a 1024x1024 16-bpp `.bmp`. Extension is picked from the decoded
+  content (`BM`→`.bmp`, `FF D8`→`.jpg`, else `.bin`) because a few files are
+  already raw.
 - `zuworld.parse_objects(blob, start)` returns `[(class, {prop: bytes})]`;
   `zuworld.read_header(blob)` parses the v85 `.DAT` header.
 - `gui.py` is the Tkinter front-end (`python gui.py`; `--selftest` checks the
-  pure helpers `find_packs` / `find_special_dirs`).
+  pure helpers `find_packs` / `find_dirs` / `find_special_dirs`).

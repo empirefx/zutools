@@ -12,6 +12,7 @@ Reverse-engineered toolkit for the *Zu Online / 新蜀山OL* client archives.
 | `zurez.py`    | `.zu` archive reader/extractor (ChaCha20 + LithTech REZ) |
 | `zudata.py`   | `.zu1` data-table decoder + table dumpers |
 | `zuworld.py`  | `WORLDS/*.DAT` LithTech object parser |
+| `zumaps.py`   | `MAPS/` converter (`*_MINIMAP.ZU3` -> `.jpg`, `*_HEIGHTMAP.ZU2` -> `.bmp`) |
 | `zulua.py`    | `Rar!lua!` Lua decryptor (DES, key `BUF12SIZ`) |
 | `extract_all.py` | one-shot orchestration |
 | `gui.py`      | Tkinter front-end (pick client folder -> pick packs -> extract) |
@@ -33,6 +34,9 @@ python zudata.py decode  DATA\ITEMS.ZU1 out\ITEMS.bin
 
 # world files -> object/position TSV; TSVs land beside the sources
 python zuworld.py dumpall path\to\WORLDS path\to\WORLDS
+
+# map images -> .jpg / .bmp beside the sources
+python zumaps.py dumpall path\to\MAPS path\to\MAPS
 
 # everything at once
 python extract_all.py --pack zu_pack1.zu --out out
