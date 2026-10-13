@@ -1,6 +1,6 @@
 """Tkinter front-end for the zutools extractor.
 
-Pick the Zu client folder -> it lists the `.zu` packs it found -> choose an
+Pick the Zu client folder -> it lists the `.zu`/`.zu1` packs it found -> choose an
 output folder -> extract all of them, or only the ones you select. Packs are
 extracted straight into the chosen output folder (paths merged across packs).
 Optionally decode the extracted `.ZU1` tables and `WORLDS/*.DAT` files
@@ -32,11 +32,11 @@ def _natural_key(path):
 
 
 def find_packs(folder):
-    """Return .zu archive paths directly inside `folder`, in natural order."""
+    """Return .zu/.zu1 archive paths directly inside `folder`, in natural order."""
     if not folder or not os.path.isdir(folder):
         return []
     out = [os.path.join(folder, f) for f in os.listdir(folder)
-           if f.lower().endswith(".zu") and os.path.isfile(os.path.join(folder, f))]
+           if f.lower().endswith((".zu", ".zu1")) and os.path.isfile(os.path.join(folder, f))]
     return sorted(out, key=_natural_key)
 
 
@@ -139,7 +139,7 @@ class App:
             self.listbox.insert("end", "%s  (%s)" % (os.path.basename(p), sz))
         self.listbox.selection_set(0, "end")
         self.found_var.set("Detected packs: %d" % len(self.packs))
-        self.logln("Found %d .zu pack(s) in %s" % (len(self.packs), folder))
+        self.logln("Found %d .zu/.zu1 pack(s) in %s" % (len(self.packs), folder))
 
     def logln(self, msg):
         self.log.config(state="normal")
@@ -220,11 +220,11 @@ class App:
 def _selftest():
     import tempfile
     d = tempfile.mkdtemp()
-    for name in ("zu_pack10.zu", "zu_pack2.zu", "zu_pack1.zu", "readme.txt"):
+    for name in ("zu_pack10.zu", "zu_pack2.zu", "zu_pack1.zu", "client_data.zu1", "readme.txt"):
         open(os.path.join(d, name), "wb").close()
     packs = find_packs(d)
     names = [os.path.basename(p) for p in packs]
-    assert names == ["zu_pack1.zu", "zu_pack2.zu", "zu_pack10.zu"], names
+    assert names == ["client_data.zu1", "zu_pack1.zu", "zu_pack2.zu", "zu_pack10.zu"], names
     data = os.path.join(d, "X", "DATA")
     worlds = os.path.join(d, "X", "WORLDS")
     os.makedirs(data)
