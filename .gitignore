@@ -9,3 +9,7 @@ venv/
 # extractor output (if written inside the repo)
 _dump/
 _world/
+
+#
+dist/
+build/
