@@ -25,12 +25,12 @@ python zurez.py list   zu_pack1.zu
 python zurez.py extract zu_pack1.zu out\pack1            # everything
 python zurez.py extract zu_pack1.zu out\pack1 /MAPS,/DATA,/WORLDS
 
-# .zu1 tables -> TSV (auto layout) or raw decode
-python zudata.py dumpall path\to\DATA out\_dump
+# .zu1 tables -> TSV (auto layout) or raw decode; TSVs land beside the sources
+python zudata.py dumpall path\to\DATA path\to\DATA
 python zudata.py decode  DATA\ITEMS.ZU1 out\ITEMS.bin
 
-# world files -> object/position TSV
-python zuworld.py dumpall path\to\WORLDS out\_world
+# world files -> object/position TSV; TSVs land beside the sources
+python zuworld.py dumpall path\to\WORLDS path\to\WORLDS
 
 # everything at once
 python extract_all.py --pack zu_pack1.zu --out out

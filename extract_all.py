@@ -28,10 +28,10 @@ def run(pack, out):
 
     for d in data_dirs:
         print("== zu1 tables", d)
-        zudata.dumpall(d, os.path.join(out, "_dump"))
+        zudata.dumpall(d, d)
     for d in worlds_dirs:
         print("== world dat", d)
-        zuworld.dumpall(d, os.path.join(out, "_world"))
+        zuworld.dumpall(d, d)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,8 @@ Pick the Zu client folder -> it lists the `.zu` packs it found -> choose an
 output folder -> extract all of them, or only the ones you select. Packs are
 extracted straight into the chosen output folder (paths merged across packs).
 Optionally decode the extracted `.ZU1` tables and `WORLDS/*.DAT` files
-afterwards (each independently, both on by default).
+afterwards (each independently, both on by default); decoded output is written
+next to its sources inside the DATA / WORLDS folders.
 
 Usage:
     python gui.py
@@ -100,8 +101,9 @@ class App:
 
         self.decode_var = tk.BooleanVar(value=True)
         self.decode_world_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(mid, text="Decode .ZU1 tables (into _dump)", variable=self.decode_var).pack(anchor="w")
-        ttk.Checkbutton(mid, text="Decode WORLDS/*.DAT (into _world)",
+        ttk.Checkbutton(mid, text="Decode .ZU1 tables (into the DATA folder)",
+                        variable=self.decode_var).pack(anchor="w")
+        ttk.Checkbutton(mid, text="Decode WORLDS/*.DAT (into the WORLDS folder)",
                         variable=self.decode_world_var).pack(anchor="w")
 
         bar = ttk.Frame(root, padding=8)
@@ -185,11 +187,11 @@ class App:
             if decode_tables:
                 for d in data_dirs:
                     self.logln("Decode .ZU1 tables: %s" % d)
-                    zudata.dumpall(d, os.path.join(out, "_dump"))
+                    zudata.dumpall(d, d)
             if decode_worlds:
                 for d in world_dirs:
                     self.logln("Decode worlds: %s" % d)
-                    zuworld.dumpall(d, os.path.join(out, "_world"))
+                    zuworld.dumpall(d, d)
             self.q.put(("done", None))
         except Exception as e:
             self.q.put(("error", "%s\n%s" % (e, traceback.format_exc())))
