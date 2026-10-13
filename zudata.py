@@ -44,9 +44,37 @@ def _s(b):
 # record where strings/ints sit at fixed offsets.  Record count = u32 @0.
 LAYOUTS = {
     "OBJS.ZU1": (4, [(0, "id"), (4, "name"), (30, "title"), (56, "icon")]),
+    "OBJS2.ZU1": (4, [(0, "id"), (4, "name"), (30, "title"), (56, "icon")]),
+    "OBJS3.ZU1": (4, [(0, "id"), (4, "name"), (30, "title"), (56, "icon")]),
     "WORLDMAPMISSION.ZU1": (4, [(0, "id"), (4, "name"), (132, "name2")]),
     "TITLE.ZU1": (4, [(0, "id"), (4, "name"), (37, "desc"),
                       (318, "requirement"), (575, "effect")]),
+}
+
+# Tables whose records are "u32 id + name string at a fixed offset".
+# Layouts beyond the name are not yet mapped (the rest of each record is raw).
+_NAME_AT = {
+    "ACTIONS.ZU1": 4, "ACTDETAILINFO.ZU1": 4, "ACTDETAILINFO2.ZU1": 4,
+    "ACTTYPEINFO.ZU1": 4, "CAVERNTEMPLATE.ZU1": 4, "CHATFACE.ZU1": 4,
+    "CHATFACE2.ZU1": 4, "FORMULA.ZU1": 4, "GUILDDEVELOPMENT.ZU1": 4,
+    "GUILDTECHNOLOGY.ZU1": 4, "GUILDTEMPLATE.ZU1": 4, "LIVESKILL.ZU1": 4,
+    "LIVESPELLMAKE.ZU1": 4, "LOADING.ZU1": 4, "MAPS.ZU1": 4, "MOTION.ZU1": 4,
+    "MUSICINFO.ZU1": 4, "NOBLETEMPLATE.ZU1": 4, "REFINE.ZU1": 4,
+    "REFINE2.ZU1": 4, "REFINE3.ZU1": 4, "SPEATTEX.ZU1": 4, "SPEATTEX2.ZU1": 4,
+    "SPELLSEX.ZU1": 4, "STONETABLE.ZU1": 4, "SUITATTRIBUTEINTRO.ZU1": 4,
+    "TALENTS.ZU1": 4, "TIPS.ZU1": 4, "ITEMS.ZU1": 4, "ITEMS2.ZU1": 4,
+    "ITEMS3.ZU1": 4, "ITEMS.1.00.05.ZU1": 4, "SPELL.ZU1": 8, "SPELLS.ZU1": 8,
+    "ITEMATT.ZU1": 8,
+}
+for _n, _o in _NAME_AT.items():
+    LAYOUTS[_n] = (4, [(0, "id"), (_o, "name")])
+
+# Plaintext config/script tables (already-decoded bytes are the file content).
+TEXT_TABLES = {
+    "CREED.ZU1": ".xml", "ERROR.ZU1": ".txt", "ERROR2.ZU1": ".txt",
+    "ERROR3.ZU1": ".txt", "FLIGHT.ZU1": ".ini", "GMHELP.ZU1": ".ini",
+    "HELPMANAGED.ZU1": ".ini", "MISSION.ZU1": ".ini", "SHOPCITYHELP.ZU1": ".ini",
+    "STORYCARD.ZU1": ".ini", "TUTORIAL.ZU1": ".txt",
 }
 
 
@@ -85,6 +113,19 @@ def dump_keyworddata(blob, out_tsv):
     return cnt, recsize
 
 
+def dump_resource(blob, out_tsv):
+    """RESOURCE.ZU1: a filesystem-path list. The per-record framing is not fully
+    stable (id/type/length header + name), so extract the path strings directly."""
+    import re
+    names = [m for m in re.findall(r"[\x20-\x7e]{4,}", blob.decode("latin1"))
+             if "\\" in m]
+    with open(out_tsv, "w", encoding="utf-8") as o:
+        o.write("idx\tname\n")
+        for i, nm in enumerate(names):
+            o.write("%d\t%s\n" % (i, nm))
+    return len(names)
+
+
 def dump(path, outdir):
     os.makedirs(outdir, exist_ok=True)
     name = os.path.basename(path).upper()
@@ -92,9 +133,17 @@ def dump(path, outdir):
     base = os.path.splitext(name)[0]
     if name == "KEYWORDDATA.ZU1":
         cnt, rs = dump_keyworddata(blob, os.path.join(outdir, base + ".tsv"))
+    elif name == "RESOURCE.ZU1":
+        cnt = dump_resource(blob, os.path.join(outdir, base + ".tsv"))
+        rs = len(blob) // cnt if cnt else 0
     elif name in LAYOUTS:
         hdr, fields = LAYOUTS[name]
         cnt, rs = dump_records(blob, hdr, fields, os.path.join(outdir, base + ".tsv"))
+    elif name in TEXT_TABLES:
+        with open(os.path.join(outdir, base + TEXT_TABLES[name]), "wb") as o:
+            o.write(blob)
+        print("[%s] decoded %d bytes -> %s%s" % (name, len(blob), base, TEXT_TABLES[name]))
+        return
     else:
         with open(os.path.join(outdir, base + ".bin"), "wb") as o:
             o.write(blob)

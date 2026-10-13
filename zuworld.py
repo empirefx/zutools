@@ -1,9 +1,26 @@
 """LithTech Jupiter world `.DAT` reader (WORLDS/*.DAT).
 
-A .DAT is a header (u32 0x55 then a table of u32 section offsets) followed by
-streams. The 2nd header offset points at the OBJECT stream:
+Header (from LithTech `PCWorldPacker.cpp`, CURRENT_DAT_VERSION = 85 = 0x55):
 
-    object : u16 classlen, class[classlen], u32 propcount
+    u32 version                       (85)
+    u32 object_section_offset         (marker; the object stream starts here)
+    u32 blind_data_offset             (= end of object section)
+    u32 light_grid_offset             (= end of blind-data section)
+    u32 physics_offset                (= end of light-grid section)
+    u32 particle_offset               (= end of physics section)
+    u32 render_offset                 (= end of particle section)
+    u32 reserved[8]                   (zero)
+    u32 info_len ; char info[info_len]      (world info / light-table string)
+    float pos_min[3] ; float pos_max[3] ; float world_offset[3]
+
+File order of sections: WorldTree, WorldModels (both between the header and the
+object section, unmarked), then objects, blind data, light grid, physics,
+particle, render.  The object section is bracketed by
+`object_section_offset`..`blind_data_offset`.
+
+Object stream:
+    u32 object_count, then object_count × [ u16 marker, object ]
+    object : u16 classlen, class[classlen], u32 propcount, prop × propcount
     prop   : u16 namelen, name[namelen],
              value : u8 tag, u32 flags, u16 size, size bytes
 
@@ -14,14 +31,36 @@ Usage:
     python zuworld.py list  <file.DAT>
     python zuworld.py dump  <file.DAT> <out.tsv>
     python zuworld.py dumpall <worldsdir> <outdir>
+    python zuworld.py header <file.DAT>
 """
 import os
 import struct
 import sys
 
+DAT_VERSION = 85
+
+
+def read_header(b):
+    """Parse the `.DAT` header. Returns a dict of all fields + section offsets."""
+    version, obj, blind, light, phys, part, rend = struct.unpack_from("<7I", b, 0)
+    info_len = struct.unpack_from("<I", b, 60)[0]
+    info = b[64:64 + info_len].decode("latin1", "replace")
+    p = 64 + info_len
+    return {
+        "version": version,
+        "object_offset": obj, "blind_data_offset": blind,
+        "light_grid_offset": light, "physics_offset": phys,
+        "particle_offset": part, "render_offset": rend,
+        "info": info,
+        "pos_min": struct.unpack_from("<3f", b, p),
+        "pos_max": struct.unpack_from("<3f", b, p + 12),
+        "world_offset": struct.unpack_from("<3f", b, p + 24),
+        "header_size": p + 36,
+    }
+
 
 def _load(b, i):
-    return struct.unpack_from("<I", b, i + 4)[0]  # 2nd header offset = object stream
+    return struct.unpack_from("<I", b, i + 4)[0]  # object-section offset == 2nd u32
 
 
 def _valid_header(b, i, n):
@@ -94,8 +133,19 @@ def _vec(data, k=3):
 
 def read_dat(path):
     b = open(path, "rb").read()
-    start = _load(b, 0)
-    return parse_objects(b, start)
+    hdr = read_header(b)
+    return parse_objects(b, hdr["object_offset"])
+
+
+def print_header(path):
+    b = open(path, "rb").read()
+    hdr = read_header(b)
+    print("[%s] size=%d version=%d" % (os.path.basename(path), len(b), hdr["version"]))
+    for k in ("object", "blind_data", "light_grid", "physics", "particle", "render"):
+        print("   %-12s @ 0x%06x" % (k, hdr[k + "_offset"]))
+    print("   header_size=%d info=%r" % (hdr["header_size"], hdr["info"][:60]))
+    print("   pos_min=%s pos_max=%s world_offset=%s"
+          % (hdr["pos_min"], hdr["pos_max"], hdr["world_offset"]))
 
 
 def obj_summary(cls, props):
@@ -146,5 +196,7 @@ if __name__ == "__main__":
         dump(sys.argv[2], sys.argv[3])
     elif cmd == "dumpall":
         dumpall(sys.argv[2], sys.argv[3])
+    elif cmd == "header":
+        print_header(sys.argv[2])
     else:
         sys.exit(__doc__)

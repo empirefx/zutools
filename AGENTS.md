@@ -11,8 +11,8 @@ self-checks below before committing.
   and no `python-lzo`; LZO1X is implemented in `zucrypto.lzo1x_decompress`.
 - **Keys live in `zucrypto.py`** (ChaCha20 key/nonce, `RC4_KEY`). Never inline
   them elsewhere.
-- **Report unknowns honestly.** The Lua `"Rar!lua!"` cipher is NOT implemented
-  (see TODO). Don't fake it.
+- **Report unknowns honestly.** Don't fake a decode. `zulua.py` implements the
+  `"Rar!lua!"` DES cipher (key `BUF12SIZ`).
 
 ## Self-checks (run before/after changes)
 
@@ -22,6 +22,8 @@ python -c "from zucrypto import lzo1x_decompress; print('lzo ok')"
 #   76b8e0ada0f13d90405d6ae55386bd28bdd219b8a08ded1aa836efcc8b770dc7
 python zudata.py decode DATA\ACTIONS.ZU1 $env:TEMP\actions.bin   # 444 bytes
 python zuworld.py list WORLDS\XR.DAT                             # 31 objects
+python zulua.py                                                  # selftest OK
+python gui.py --selftest                                         # gui selftest OK
 ```
 
 Known-good expectations:
@@ -45,18 +47,24 @@ Known-good expectations:
 
 ## TODO / open items
 
-- **Lua `"Rar!lua!"` container**: 8-byte block cipher, a *custom* DES variant
-  (client PC1 table @`0x10500ba0` ≠ standard DES; shifts @`0x10500b90` do match).
-  Key is built from the `"SIZ"`,`"12"`,`"BUF"` strings near `0x101ebcf0`.
-  Lua decrypt entry `0x101ebe10`. Not yet reproduced.
-- `zudata.LAYOUTS` only covers a few tables; add layouts as more are decoded
-  (record count is always the u32 at offset 0).
-- `.DAT` header offset table (after the initial `0x55` u32) is only partially
-  understood; the object stream is found via the 2nd offset.
+- **`Rar!Bute` container** (`FLYSWORDBOOK.ZU1`, `MISSION3.ZU1` are stored as it):
+  magic `"Rar!Bute"` + body. Found via "CGameButeMgr" strings near
+  `0x103fd218`. NOT the Lua DES key/`Rar!lua!` scheme (BUF12SIZ gives garbage),
+  and not RC4(`RC4_KEY`)/LZO. Payload undecoded.
+- `zudata.LAYOUTS` covers the ~35 name-bearing tables (id + name); `RESOURCE.ZU1`
+  is handled by string-extraction; `TEXT_TABLES` are plaintext `.ini/.xml/.txt`.
+  Purely-numeric tables (`ADDATTRMAX`, `BATTLE`, `COMBAT_RATION`, `CHAR`, …) are
+  still written raw as `.bin` (per-field layouts not yet mapped).
+- None for the `.DAT` header — it is fully mapped (`zuworld.read_header`);
+  WorldTree / WorldModels sections (between the header and the object section)
+  are located but not yet parsed.
 
 ## Code map
 
 - `zurez.Archive.entries()` yields `(path, size, read_pos)`; `Archive.read()`
   fetches bytes (handles the seal boundary transparently).
 - `zudata.decode_zu1(blob)` is the single entry point for `.zu1` bytes.
-- `zuworld.parse_objects(blob, start)` returns `[(class, {prop: bytes})]`.
+- `zuworld.parse_objects(blob, start)` returns `[(class, {prop: bytes})]`;
+  `zuworld.read_header(blob)` parses the v85 `.DAT` header.
+- `gui.py` is the Tkinter front-end (`python gui.py`; `--selftest` checks the
+  pure helpers `find_packs` / `find_special_dirs`).

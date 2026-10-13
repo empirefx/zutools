@@ -10,7 +10,9 @@ Reverse-engineered toolkit for the *Zu Online / 新蜀山OL* client archives.
 | `zurez.py`    | `.zu` archive reader/extractor (ChaCha20 + LithTech REZ) |
 | `zudata.py`   | `.zu1` data-table decoder + table dumpers |
 | `zuworld.py`  | `WORLDS/*.DAT` LithTech object parser |
+| `zulua.py`    | `Rar!lua!` Lua decryptor (DES, key `BUF12SIZ`) |
 | `extract_all.py` | one-shot orchestration |
+| `gui.py`      | Tkinter front-end (pick client folder -> pick packs -> extract) |
 
 See [`docs/FORMATS.md`](docs/FORMATS.md) for the binary format reference and the
 hardcoded keys, and [`AGENTS.md`](AGENTS.md) for the maintainer/agent guide.
@@ -32,6 +34,9 @@ python zuworld.py dumpall path\to\WORLDS out\_world
 
 # everything at once
 python extract_all.py --pack zu_pack1.zu --out out
+
+# graphical front-end: choose the client folder, tick the packs, extract
+python gui.py
 ```
 
 Requires Python 3.8+ only (no third-party packages).
