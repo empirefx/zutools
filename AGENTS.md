@@ -24,6 +24,7 @@ python zudata.py decode DATA\ACTIONS.ZU1 $env:TEMP\actions.bin   # 444 bytes
 python zuworld.py list WORLDS\XR.DAT                             # 31 objects
 python zulua.py                                                  # selftest OK
 python zumaps.py --selftest                                      # zumaps selftest OK
+python zucook.py --selftest                                      # zucook selftest OK
 python gui.py --selftest                                         # gui selftest OK
 ```
 
@@ -74,5 +75,10 @@ Known-good expectations:
   already raw.
 - `zuworld.parse_objects(blob, start)` returns `[(class, {prop: bytes})]`;
   `zuworld.read_header(blob)` parses the v85 `.DAT` header.
+- `zucook.finalize(root)` is the post-extract pass: `zulua.dumpall(root, root)`
+  (decrypt every `Rar!lua!` in place) then `zudata`/`zuworld`/`zumaps.dumpall`
+  over the `DATA`/`WORLDS`/`MAPS` folders found by `zucook.find_dirs`. All passes
+  are idempotent (already-native files are skipped). `extract_all.py` and
+  `gui.py` call it.
 - `gui.py` is the Tkinter front-end (`python gui.py`; `--selftest` checks the
-  pure helpers `find_packs` / `find_dirs` / `find_special_dirs`).
+  pure helper `find_packs`).

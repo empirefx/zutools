@@ -1,44 +1,25 @@
-r"""One-shot extraction pipeline: .zu archive(s) -> decoded tables + world TSVs + map images.
+r"""One-shot extraction pipeline: .zu archive(s) -> original-format assets.
+
+Extracts each pack, then runs `zucook.finalize` to decrypt Lua and decode
+tables / worlds / maps in place.
 
 Usage:
-    python extract_all.py --pack zu_pack1.zu --out extracted\pack1 [--prefix /MAPS,/DATA,/WORLDS]
-    python extract_all.py --pack zu_pack1.zu,zu_pack9.zu --out extracted --prefix /DATA,/WORLDS,/MAPS
+    python extract_all.py --pack zu_pack1.zu --out extracted\pack1
+    python extract_all.py --pack zu_pack1.zu,zu_pack9.zu --out extracted
 """
 import argparse
 import os
 import sys
 
 import zurez
-import zudata
-import zuworld
-import zumaps
+import zucook
 
 
 def run(pack, out):
     print("== archive", pack)
     zurez.extract(pack, out, prefixes=None)
-
-    data_dirs = []
-    worlds_dirs = []
-    maps_dirs = []
-    for root, _dirs, files in os.walk(out):
-        b = os.path.basename(root).upper()
-        if b == "DATA" and any(f.upper().endswith(".ZU1") for f in files):
-            data_dirs.append(root)
-        if b == "WORLDS" and any(f.upper().endswith(".DAT") for f in files):
-            worlds_dirs.append(root)
-        if b == "MAPS" and any(f.upper().endswith((".ZU2", ".ZU3")) for f in files):
-            maps_dirs.append(root)
-
-    for d in data_dirs:
-        print("== zu1 tables", d)
-        zudata.dumpall(d, d)
-    for d in worlds_dirs:
-        print("== world dat", d)
-        zuworld.dumpall(d, d)
-    for d in maps_dirs:
-        print("== maps", d)
-        zumaps.dumpall(d, d)
+    print("== finalize", out)
+    zucook.finalize(out)
 
 
 if __name__ == "__main__":

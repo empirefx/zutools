@@ -151,3 +151,20 @@ container: magic `"Rar!Bute"` (8 B) + encrypted body. The magic string sits at
 VA `0x103fd218` next to the `"CGameButeMgr"` error strings. The Lua DES key
 `BUF12SIZ`, RC4(`RC4_KEY`) and plain LZO all produce garbage, so the cipher/key
 is still unknown. Not decoded.
+
+## 6. Post-extract finalize (`zucook.py`)
+
+The `.zu` archives store most resources **wrapped**: `Rar!lua!` (DES) for Lua,
+the `.zu1` container (RC4 + LZO) for tables and height maps, and `.DAT` world
+files. `zucook.finalize(root)` runs the decoders over an extracted tree and
+rewrites each wrapped file **in place** to its original format:
+
+- `zulua.dumpall(root, root)` — every `Rar!lua!` `.LUA` -> plaintext Lua.
+- `zudata.dumpall` on `DATA` — `.ZU1` tables -> `.tsv` (`.bin` if unknown layout).
+- `zuworld.dumpall` on `WORLDS` — `.DAT` -> object/position `.tsv`.
+- `zumaps.dumpall` on `MAPS` — images -> `.jpg` / `.bmp`.
+
+Every pass is **idempotent**: already-native files (no container magic) are
+skipped, so re-running is safe. Native binaries (`.DTX`, `.SPR`, `.LTB`, `.WAV`,
+`.MP3`, `.JPG`, …) are left untouched — only wrapped containers are unwrapped.
+`gui.py` and `extract_all.py` call `finalize` after extracting.

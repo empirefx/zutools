@@ -3,10 +3,9 @@
 Pick the Zu client folder -> it lists the `.zu`/`.zu1` packs it found -> choose an
 output folder -> extract all of them, or only the ones you select. Packs are
 extracted straight into the chosen output folder (paths merged across packs).
-Optionally decode the extracted `.ZU1` tables and `WORLDS/*.DAT` files
-afterwards, and convert `MAPS/*` to images (each independently, all on by
-default); output is written next to its sources inside the DATA / WORLDS / MAPS
-folders.
+Optionally "convert all files to their original format" afterwards: decrypt
+`.LUA` scripts, decode `.ZU1` tables / `WORLDS/*.DAT`, and convert `MAPS/*` to
+images (on by default, in place).
 
 Usage:
     python gui.py
@@ -22,9 +21,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 import zurez
-import zudata
-import zuworld
-import zumaps
+import zucook
 
 
 def _natural_key(path):
@@ -40,21 +37,6 @@ def find_packs(folder):
     out = [os.path.join(folder, f) for f in os.listdir(folder)
            if f.lower().endswith((".zu", ".zu1")) and os.path.isfile(os.path.join(folder, f))]
     return sorted(out, key=_natural_key)
-
-
-def find_dirs(root, name, exts):
-    """Walk `root` for folders called `name` that hold files ending in `exts`."""
-    hits = []
-    for cur, _dirs, files in os.walk(root):
-        if os.path.basename(cur).upper() == name and any(f.upper().endswith(exts) for f in files):
-            hits.append(cur)
-    return hits
-
-
-def find_special_dirs(root):
-    """Walk `root` for DATA dirs (with .ZU1) and WORLDS dirs (with .DAT)."""
-    return (find_dirs(root, "DATA", (".ZU1",)),
-            find_dirs(root, "WORLDS", (".DAT",)))
 
 
 def _humansize(n):
@@ -104,15 +86,11 @@ class App:
         ttk.Button(btns, text="Select all", command=lambda: self.listbox.selection_set(0, "end")).pack(side="left")
         ttk.Button(btns, text="Select none", command=lambda: self.listbox.selection_clear(0, "end")).pack(side="left", padx=4)
 
-        self.decode_var = tk.BooleanVar(value=True)
-        self.decode_world_var = tk.BooleanVar(value=True)
-        self.map_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(mid, text="Decode .ZU1 tables (into the DATA folder)",
-                        variable=self.decode_var).pack(anchor="w")
-        ttk.Checkbutton(mid, text="Decode WORLDS/*.DAT (into the WORLDS folder)",
-                        variable=self.decode_world_var).pack(anchor="w")
-        ttk.Checkbutton(mid, text="Convert MAPS (*_MINIMAP.ZU3 -> .jpg, *_HEIGHTMAP.ZU2 -> .bmp)",
-                        variable=self.map_var).pack(anchor="w")
+        self.convert_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            mid, variable=self.convert_var,
+            text="Convert all files to original format (decrypt Lua, decode tables/worlds/maps)"
+        ).pack(anchor="w")
 
         bar = ttk.Frame(root, padding=8)
         bar.pack(fill="x")
@@ -170,13 +148,11 @@ class App:
         sel = [self.packs[i] for i in idxs]
         self.run_btn.config(state="disabled")
         self.progress.start(12)
-        t = threading.Thread(target=self._worker,
-                             args=(sel, out, self.decode_var.get(), self.decode_world_var.get(),
-                                   self.map_var.get()),
+        t = threading.Thread(target=self._worker, args=(sel, out, self.convert_var.get()),
                              daemon=True)
         t.start()
 
-    def _worker(self, packs, out, decode_tables, decode_worlds, convert_maps):
+    def _worker(self, packs, out, convert):
         try:
             for pack in packs:
                 self.logln("Extracting %s -> %s" % (os.path.basename(pack), out))
@@ -192,19 +168,9 @@ class App:
                         self.logln("  ... %d files" % n)
                 ar.close()
                 self.logln("  done: %d files" % n)
-            data_dirs, world_dirs = find_special_dirs(out)
-            if decode_tables:
-                for d in data_dirs:
-                    self.logln("Decode .ZU1 tables: %s" % d)
-                    zudata.dumpall(d, d)
-            if decode_worlds:
-                for d in world_dirs:
-                    self.logln("Decode worlds: %s" % d)
-                    zuworld.dumpall(d, d)
-            if convert_maps:
-                for d in find_dirs(out, "MAPS", (".ZU2", ".ZU3")):
-                    self.logln("Convert maps: %s" % d)
-                    zumaps.dumpall(d, d)
+            if convert:
+                self.logln("Converting all files to original format...")
+                zucook.finalize(out)
             self.q.put(("done", None))
         except Exception as e:
             self.q.put(("error", "%s\n%s" % (e, traceback.format_exc())))
@@ -238,18 +204,6 @@ def _selftest():
     packs = find_packs(d)
     names = [os.path.basename(p) for p in packs]
     assert names == ["client_data.zu1", "zu_pack1.zu", "zu_pack2.zu", "zu_pack10.zu"], names
-    data = os.path.join(d, "X", "DATA")
-    worlds = os.path.join(d, "X", "WORLDS")
-    maps = os.path.join(d, "X", "MAPS")
-    for p in (data, worlds, maps):
-        os.makedirs(p)
-    open(os.path.join(data, "ITEMS.ZU1"), "wb").close()
-    open(os.path.join(worlds, "XR.DAT"), "wb").close()
-    open(os.path.join(maps, "LEVEL_MINIMAP.ZU3"), "wb").close()
-    dd, wd = find_special_dirs(os.path.join(d, "X"))
-    assert dd == [data], dd
-    assert wd == [worlds], wd
-    assert find_dirs(os.path.join(d, "X"), "MAPS", (".ZU2", ".ZU3")) == [maps]
     print("gui selftest OK")
 
 

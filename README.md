@@ -14,6 +14,7 @@ Reverse-engineered toolkit for the *Zu Online / 新蜀山OL* client archives.
 | `zuworld.py`  | `WORLDS/*.DAT` LithTech object parser |
 | `zumaps.py`   | `MAPS/` converter (`*_MINIMAP.ZU3` -> `.jpg`, `*_HEIGHTMAP.ZU2` -> `.bmp`) |
 | `zulua.py`    | `Rar!lua!` Lua decryptor (DES, key `BUF12SIZ`) |
+| `zucook.py`   | post-extract finalize: decrypt Lua + decode tables/worlds/maps in place |
 | `extract_all.py` | one-shot orchestration |
 | `gui.py`      | Tkinter front-end (pick client folder -> pick packs -> extract) |
 
@@ -38,7 +39,9 @@ python zuworld.py dumpall path\to\WORLDS path\to\WORLDS
 # map images -> .jpg / .bmp beside the sources
 python zumaps.py dumpall path\to\MAPS path\to\MAPS
 
-# everything at once
+# turn an extracted tree into original-format files (Lua plaintext, tables,
+# worlds, map images) in place — or extract + finalize in one shot
+python zucook.py path\to\extracted
 python extract_all.py --pack zu_pack1.zu --out out
 
 # graphical front-end: choose the client folder, tick the packs, extract
