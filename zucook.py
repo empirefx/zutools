@@ -9,12 +9,16 @@ the tree and turns each wrapped file into something usable:
 - `WORLDS/*.DAT` -> object/position `.tsv`.
 - `MAPS/*` -> `.jpg` / `.bmp`.
 
+With `images=True`, `.DTX` textures are also exported to `.bmp` and `.SPR`
+sprite manifests to `.spr.txt` (`zudtx`, best-effort — DXT-compressed textures
+are skipped).
+
 Files that are already in their native format (`.DTX`, `.SPR`, `.LTB`, `.WAV`,
 `.MP3`, `.JPG`, …) are left untouched. The `Rar!Bute` container
 (`FLYSWORDBOOK`/`MISSION3`) is not decoded.
 
 Usage:
-    python zucook.py <root>
+    python zucook.py <root> [--images]
     python zucook.py --selftest
 """
 import os
@@ -35,8 +39,12 @@ def find_dirs(root, name, exts):
     return hits
 
 
-def finalize(root):
-    """Normalize every wrapped file under `root` to its original format."""
+def finalize(root, images=False):
+    """Normalize every wrapped file under `root` to its original format.
+
+    When `images` is true, also export `.DTX` textures to `.bmp` and `.SPR`
+    sprite manifests to `.spr.txt` (returns `(dtx, spr)` counts, else `(0, 0)`).
+    """
     zulua.dumpall(root, root)
     for d in find_dirs(root, "DATA", (".ZU1",)):
         zudata.dumpall(d, d)
@@ -44,6 +52,10 @@ def finalize(root):
         zuworld.dumpall(d, d)
     for d in find_dirs(root, "MAPS", (".ZU2", ".ZU3")):
         zumaps.dumpall(d, d)
+    if images:
+        import zudtx
+        return zudtx.dumpall(root, root)
+    return 0, 0
 
 
 def _selftest():
@@ -81,9 +93,10 @@ def _selftest():
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--selftest":
+    args = [a for a in sys.argv[1:]]
+    if "--selftest" in args:
         _selftest()
-    elif len(sys.argv) > 1:
-        finalize(sys.argv[1])
+    elif args:
+        finalize(args[0], images="--images" in args)
     else:
         sys.exit(__doc__)

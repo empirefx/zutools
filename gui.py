@@ -5,7 +5,9 @@ output folder -> extract all of them, or only the ones you select. Packs are
 extracted straight into the chosen output folder (paths merged across packs).
 Optionally "convert all files to their original format" afterwards: decrypt
 `.LUA` scripts, decode `.ZU1` tables / `WORLDS/*.DAT`, and convert `MAPS/*` to
-images (on by default, in place).
+images (on by default, in place). A second option exports `.DTX` textures to
+`.bmp` and `.SPR` sprite manifests to `.spr.txt` (off by default; best-effort,
+DXT-compressed textures are skipped).
 
 Usage:
     python gui.py
@@ -92,6 +94,21 @@ class App:
             text="Convert all files to original format (decrypt Lua, decode tables/worlds/maps)"
         ).pack(anchor="w")
 
+        self.images_var = tk.BooleanVar(value=False)
+        self.images_chk = ttk.Checkbutton(
+            mid, variable=self.images_var,
+            text="Also export .DTX textures to .bmp and .SPR manifests to .spr.txt (best-effort; DXT skipped)"
+        )
+        self.images_chk.pack(anchor="w", padx=(20, 0))
+        self.images_warn = ttk.Label(mid, foreground="#c0392b", text="")
+        self.images_warn.pack(anchor="w", padx=(40, 0))
+        self.images_var.trace_add("write", lambda *_: self.images_warn.config(
+            text="Note: exporting textures is slower — it adds a pass over every .DTX/.SPR file."
+            if self.images_var.get() else ""))
+        self.convert_var.trace_add("write", lambda *_: self.images_chk.config(
+            state="normal" if self.convert_var.get() else "disabled"))
+        self.images_chk.config(state="normal" if self.convert_var.get() else "disabled")
+
         bar = ttk.Frame(root, padding=8)
         bar.pack(fill="x")
         self.run_btn = ttk.Button(bar, text="Extract selected", command=self.start_extract)
@@ -148,11 +165,11 @@ class App:
         sel = [self.packs[i] for i in idxs]
         self.run_btn.config(state="disabled")
         self.progress.start(12)
-        t = threading.Thread(target=self._worker, args=(sel, out, self.convert_var.get()),
+        t = threading.Thread(target=self._worker, args=(sel, out, self.convert_var.get(), self.images_var.get()),
                              daemon=True)
         t.start()
 
-    def _worker(self, packs, out, convert):
+    def _worker(self, packs, out, convert, images):
         try:
             for pack in packs:
                 self.logln("Extracting %s -> %s" % (os.path.basename(pack), out))
@@ -170,7 +187,9 @@ class App:
                 self.logln("  done: %d files" % n)
             if convert:
                 self.logln("Converting all files to original format...")
-                zucook.finalize(out)
+                n_dtx, n_spr = zucook.finalize(out, images=images)
+                if images:
+                    self.logln("Exported %d textures -> .bmp, %d sprites -> .spr.txt" % (n_dtx, n_spr))
             self.q.put(("done", None))
         except Exception as e:
             self.q.put(("error", "%s\n%s" % (e, traceback.format_exc())))

@@ -168,3 +168,38 @@ Every pass is **idempotent**: already-native files (no container magic) are
 skipped, so re-running is safe. Native binaries (`.DTX`, `.SPR`, `.LTB`, `.WAV`,
 `.MP3`, `.JPG`, …) are left untouched — only wrapped containers are unwrapped.
 `gui.py` and `extract_all.py` call `finalize` after extracting.
+
+`finalize(root, images=True)` additionally runs `zudtx.dumpall(root)` (§7).
+
+## 7. `.DTX` textures and `.SPR` sprites (`zudtx.py`)
+
+### `.DTX` (LithTech DTX v2, version `-5`)
+
+```
+off 0    u16 w, u16 h      # older variant; used when the fields below are 0
+off 4    i32 version       # -5
+off 8    u16 w, u16 h
+off 12   u32 mipmaps
+off 16   u32 format flags  # 0x8 = 32-bit, 0x80 bit = alpha, 0x400 bit = cube
+off 26   u16 subformat     # 3 = uncompressed; 4/5/6 = DXT1/DXT3/DXT5
+off 164  pixel data        # base mip level first, then the mip chain (4 B/px)
+```
+
+The pixel offset (164), the dimension fields and the 4-bytes-per-pixel
+assumption were all validated by **exact size accounting over all 14848 shipped
+DTX**: `164 + Σ level_i (w>>i)·(h>>i)·bpp == file size`. 13665 files match at
+`bpp=4, subformat=3`; the remaining match only at the DXT block sizes
+(`subformat` 4/5/6), i.e. they are DXT-compressed. There is no separate
+"checksum" branch — the first u32 is `(w<<16)|h` for the older writer variant
+and `0` for the newer one, which is why the dimensions live in two places.
+
+`zudtx.dtx_to_bmp` exports the **uncompressed 32-bit** textures (B,G,R,X -> 24-bit
+BMP, alpha dropped); DXT textures are skipped. ~92% of DTX convert.
+
+### `.SPR`
+
+Not a bitmap: a length-prefixed ASCII string table naming the `.dtx` textures
+that form a sprite. Layout: `u32 @0` (id), `u32 @4` (15 or 10), 12 zero bytes,
+then repeated `u16 len` + `len` bytes of path (e.g. `spritestex\caustic02.dtx`).
+781 / 782 shipped SPR decode cleanly to the end of file; `zudtx.spr_to_txt`
+writes the reference list to a sidecar `.spr.txt`.

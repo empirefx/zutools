@@ -25,6 +25,7 @@ python zuworld.py list WORLDS\XR.DAT                             # 31 objects
 python zulua.py                                                  # selftest OK
 python zumaps.py --selftest                                      # zumaps selftest OK
 python zucook.py --selftest                                      # zucook selftest OK
+python zudtx.py --selftest                                       # zudtx selftest OK
 python gui.py --selftest                                         # gui selftest OK
 ```
 
@@ -75,7 +76,12 @@ Known-good expectations:
   already raw.
 - `zuworld.parse_objects(blob, start)` returns `[(class, {prop: bytes})]`;
   `zuworld.read_header(blob)` parses the v85 `.DAT` header.
-- `zucook.finalize(root)` is the post-extract pass: `zulua.dumpall(root, root)`
+- `zudtx.dtx_to_bmp` exports uncompressed (`subformat == 3`) 32-bit `.DTX` to
+  24-bit `.bmp`; `zudtx.spr_to_txt` decodes a `.SPR` (a string table of `.dtx`
+  references, not a bitmap) to `.spr.txt`. `zudtx.dumpall(root)` does both.
+  See `docs/FORMATS.md` §7 for the header layout and how the field positions
+  were validated (exact mip-chain size accounting over all 14848 DTX).
+- `zucook.finalize(root, images=False)` is the post-extract pass: `zulua.dumpall(root, root)`
   (decrypt every `Rar!lua!` in place) then `zudata`/`zuworld`/`zumaps.dumpall`
   over the `DATA`/`WORLDS`/`MAPS` folders found by `zucook.find_dirs`. All passes
   are idempotent (already-native files are skipped). `extract_all.py` and
