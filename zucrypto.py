@@ -86,95 +86,128 @@ class LZOError(Exception):
 
 
 def lzo1x_decompress(data):
+    """Faithful Python port of lzo1x_decompress_safe (linux/lib/lzo, i.e.
+    Markus F.X.J. Oberhumer's LZO1X decoder).  The previous hand-rolled
+    version got the decoder's `state` machine wrong (it lacked the
+    post-match `next`-literal state), which silently corrupted match runs
+    in several data tables.  Raises LZOError unless the stream ends exactly
+    on the EOF marker.
+    """
     n = len(data)
-    pos = 0
+    ip = 0
     out = bytearray()
-    trailing = 0
+    state = 0
 
-    def rd1():
-        nonlocal pos
-        v = data[pos]; pos += 1
-        return v
+    if n < 3:
+        raise LZOError("input too short")
 
-    def le16():
-        nonlocal pos
-        v = data[pos] | (data[pos + 1] << 8); pos += 2
-        return v
+    bsv = 0
+    if n >= 5 and data[0] == 17:
+        bsv = data[1]
+        ip = 2
 
-    def lit(length):
-        nonlocal pos
-        out.extend(data[pos:pos + length]); pos += length
+    def u16(a):
+        return data[a] | (data[a + 1] << 8)
 
-    def zeroes():
-        length = 0
-        v = rd1()
-        while v == 0:
-            length += 255
-            if length > (1 << 20):
-                raise LZOError("too many zeroes")
-            v = rd1()
-        return length + v
-
-    def match(m_len, m_dist, tr):
-        nonlocal trailing
-        if m_dist > len(out):
-            raise LZOError("distance %d > bufsize %d" % (m_dist, len(out)))
-        start = len(out) - m_dist
-        if m_dist >= m_len:
-            out.extend(out[start:start + m_len])
-        else:
-            block = bytes(out[start:start + m_dist])
-            q, r = divmod(m_len, m_dist)
-            out.extend(block * q)
-            out.extend(block[:r])
-        trailing = tr
-        lit(tr)
-
-    def inst(val):
-        nonlocal trailing
-        if val <= 0x0f:
-            if not trailing:
-                if val == 0:
-                    lit(zeroes() + 18)
-                else:
-                    lit(val + 3)
-            else:
-                h = rd1()
-                match(2, (h << 2) + (val >> 2) + 1, val & 3)
-        elif val <= 0x1f:
-            if val & 7 == 0:
-                length = 9 + zeroes()
-            else:
-                length = (val & 7) + 2
-            ds = le16()
-            dist = 16384 + ((val & 8) >> 3) + (ds >> 2)
-            if dist == 16384:
-                return False
-            match(length, dist, ds & 3)
-        elif val <= 0x3f:
-            length = val & 31
-            if length == 0:
-                length = zeroes() + 31
-            length += 2
-            ds = le16()
-            match(length, 1 + (ds >> 2), ds & 3)
-        else:
-            if val <= 0x7f:
-                length = 3 + ((val >> 5) & 1)
-            else:
-                length = 5 + ((val >> 5) & 3)
-            h = rd1()
-            match(length, (h << 3) + ((val >> 2) & 7) + 1, val & 3)
-        return True
-
-    t = rd1()
-    if t == 0x10:
-        raise LZOError("LZO v1 stream")
-    if t < 0x12:
-        if not inst(t):
-            return bytes(out)
+    if data[ip] > 17:
+        t = data[ip] - 17
+        ip += 1
+        if t < 4:
+            state = t                       # match_next with next=t
+        out.extend(data[ip:ip + t]); ip += t
+        if t >= 4:
+            state = 4
     else:
-        lit(t - 0x11)
-    while inst(rd1()):
-        pass
-    return bytes(out)
+        state = 0
+
+    while True:
+        if ip >= n:
+            raise LZOError("input exhausted without EOF marker")
+        t = data[ip]; ip += 1
+        match_len = None
+        m_pos = None
+        if t < 16:
+            if state == 0:
+                if t == 0:
+                    z = 0
+                    while data[ip] == 0:
+                        ip += 1; z += 1
+                    t += z * 255 + 15 + data[ip]; ip += 1
+                t += 3
+                if ip + t > n:
+                    raise LZOError("literal run past EOF")
+                out.extend(data[ip:ip + t]); ip += t
+                state = 4
+                continue
+            elif state != 4:
+                next_ = t & 3
+                m_pos = len(out) - 1 - (t >> 2) - (data[ip] << 2); ip += 1
+                match_len = 2
+            else:
+                next_ = t & 3
+                m_pos = len(out) - 1 - 0x0800 - (t >> 2) - (data[ip] << 2)
+                ip += 1
+                match_len = 3
+        elif t >= 64:
+            next_ = t & 3
+            m_pos = len(out) - 1 - ((t >> 2) & 7) - (data[ip] << 3); ip += 1
+            match_len = (t >> 5) + 1
+        elif t >= 32:
+            t = (t & 31) + 2
+            if t == 2:
+                z = 0
+                while data[ip] == 0:
+                    ip += 1; z += 1
+                t += z * 255 + 31 + data[ip]; ip += 1
+            m_pos = len(out) - 1
+            nxt_l = u16(ip); ip += 2
+            m_pos -= nxt_l >> 2
+            next_ = nxt_l & 3
+            match_len = t
+        else:  # 16 <= t < 32
+            nxt_peek = u16(ip)
+            if (nxt_peek & 0xfffc) == 0xfffc and (t & 0xf8) == 0x18 and bsv:
+                # bitstream zero-run
+                t &= 7
+                t |= data[ip + 2] << 3
+                t += 4  # MIN_ZERO_RUN_LENGTH
+                out.extend(b"\x00" * t)
+                ip += 3
+                state = nxt_peek & 3
+                out.extend(data[ip:ip + state]); ip += state  # match_next
+                continue
+            m_pos = len(out) - ((t & 8) << 11)
+            t = (t & 7) + 2
+            if t == 2:
+                z = 0
+                while data[ip] == 0:
+                    ip += 1; z += 1
+                t += z * 255 + 7 + data[ip]; ip += 1
+                nxt_peek = u16(ip)
+            ip += 2
+            m_pos -= nxt_peek >> 2
+            next_ = nxt_peek & 3
+            match_len = t
+            if m_pos == len(out):
+                # end marker
+                if match_len != 3:
+                    raise LZOError("bad EOF marker")
+                if ip != n:
+                    raise LZOError("trailing input after EOF marker")
+                return bytes(out)
+            m_pos -= 0x4000
+
+        # -- generic match copy ------------------------------------------------
+        if not (m_pos is not None and 0 <= m_pos < len(out)):
+            raise LZOError("match distance out of range (: %r)" % (m_pos,))
+        if m_pos + match_len > len(out):
+            # overlapping copy: replicate forward byte-wise
+            pass
+        src = m_pos
+        for _ in range(match_len):
+            out.append(out[src]); src += 1
+        # match_next: copy `next_` literal bytes
+        if ip + next_ > n:
+            raise LZOError("match_next past EOF")
+        out.extend(data[ip:ip + next_]); ip += next_
+        state = next_
